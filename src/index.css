@@ -146,6 +146,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--yellow); outlin
 .battle-toolbar button { border: 0; color: #a5adbb; background: transparent; cursor: pointer; font: 7px "Press Start 2P"; }.battle-toolbar button:hover { color: var(--yellow); }
 .battle-toolbar span { color: #586273; font-size: 9px; text-transform: uppercase; }
 .battle-toolbar-actions { display:flex; align-items:center; gap:18px; }
+.battle-toolbar .pause-button { padding:8px 10px; border:1px solid #3b465a; color:#ffe07a; background:#191827; }.battle-toolbar .pause-button:hover { border-color:var(--yellow); background:#292235; }
 .battle-toolbar .fullscreen-button { padding:8px 10px; border:1px solid #3b465a; color:#d9e2f0; background:#121927; }.battle-toolbar .fullscreen-button:hover { border-color:var(--yellow); background:#1a2334; }
 
 .roster-panel { max-width: 1200px; margin: 0 auto 30px; padding: 26px; background: #0d111c; border: 1px solid #303746; box-shadow: 8px 8px 0 #020308; }
@@ -199,8 +200,10 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--yellow); outlin
 .versus { text-align: center; }
 .versus span { display: block; color: #777f8d; font: 8px "Press Start 2P"; }
 .versus b { display: block; margin-top: 6px; color: var(--yellow); font: 25px "Press Start 2P"; font-style: italic; text-shadow: 4px 4px 0 #665014; }
+.versus small { display: block; margin-top: 8px; color: #aeb8c9; font: 7px "Press Start 2P"; }
 
 .arena { position: relative; height: min(55vw, 535px); min-height: 350px; overflow: hidden; isolation: isolate; background: linear-gradient(#141025 0 48%, #3c1f34 64%, #d1674c 100%); transition: background .4s; }
+.arena.is-paused * { animation-play-state: paused !important; }
 .arena.has-impact { animation: arena-shake .24s steps(3); }
 @keyframes arena-shake { 33% { transform: translate(5px,-2px); } 66% { transform: translate(-5px,2px); } }
 .arena:after { content: ""; position: absolute; inset: 0; z-index: 20; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(0,0,0,.11) 0 2px, transparent 2px 5px); mix-blend-mode: multiply; }
@@ -218,6 +221,18 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--yellow); outlin
 .floor-lines:after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent 0 80px, #282735 82px 84px), repeating-linear-gradient(0deg, transparent 0 28px, #282735 30px 32px); transform: perspective(200px) rotateX(35deg); transform-origin: top; }
 .fight-message { position: absolute; z-index: 15; top: 35%; left: 50%; transform: translate(-50%,-50%) skew(-6deg); color: var(--yellow); white-space: nowrap; font: clamp(23px, 5vw, 62px) "Press Start 2P"; text-shadow: 7px 7px 0 #8d2740, -3px -3px 0 #fff; animation: announce .28s steps(3); }
 .fight-message.long { font-size: clamp(11px, 2.4vw, 28px); }
+.round-result { position: absolute; z-index: 21; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 20px; text-align: center; background: rgba(5,7,14,.82); backdrop-filter: blur(4px); }
+.round-result > span { color: var(--blue); font: 9px "Press Start 2P"; }
+.round-result h2 { margin: 0; color: var(--yellow); font: clamp(25px, 5vw, 54px) "Press Start 2P"; text-shadow: 5px 5px #8d2740; }
+.round-result p { margin: 0; color: #f6f1df; font-size: 13px; }
+.round-result button { margin-top: 5px; padding: 15px 20px; border: 2px solid var(--yellow); background: #252016; color: var(--yellow); font: 9px "Press Start 2P"; cursor: pointer; }
+.round-result button:hover { background: var(--yellow); color: #080b13; }
+.round-result small { color: #aeb8c9; font-size: 11px; }
+.pause-overlay { position:absolute; z-index:22; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; background:rgba(5,7,14,.78); backdrop-filter:blur(4px); text-align:center; }
+.pause-overlay > span { color:var(--yellow); font:clamp(18px,4vw,36px) "Press Start 2P"; text-shadow:4px 4px #8d2740; }
+.pause-overlay button { padding:14px 18px; border:2px solid var(--blue); color:#eaf8ff; background:#10243a; font:9px "Press Start 2P"; cursor:pointer; }
+.pause-overlay button:hover { color:#07101a; background:var(--blue); }
+.pause-overlay small { color:#aeb8c9; font-size:11px; }
 @keyframes announce { from { transform: translate(-50%,-50%) scale(2.4) skew(-6deg); opacity: 0; } }
 .combatant { position: absolute; z-index: 8; bottom: 15%; width: 78px; height: 140px; transition: left .08s linear; }
 .combo-counter { position: absolute; z-index: 16; top: 28%; left: 5%; transform: rotate(-5deg); animation: combo-in .2s steps(2); }
@@ -256,6 +271,16 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--yellow); outlin
 .controls > div { display: grid; justify-items: center; gap: 4px; }
 .controls kbd { min-width: 31px; height: 31px; display: grid; place-items: center; padding: 0 7px; border: 2px solid #7c8595; background: #222834; box-shadow: 0 4px 0 #080a10; font: 8px "Press Start 2P"; }
 .controls small, .control-label, .or { color: #697384; font: 6px "Press Start 2P"; }
+.control-button { display: grid; justify-items: center; gap: 5px; min-width: 46px; padding: 4px; color: #d7dce5; background: transparent; border: 0; cursor: pointer; touch-action: none; user-select: none; }
+.control-button kbd { min-width: 44px; pointer-events: none; }
+.control-button small { pointer-events: none; }
+.control-button:hover kbd, .control-button:focus-visible kbd { border-color: var(--yellow); color: var(--yellow); transform: translateY(-2px); }
+.control-button:active kbd, .control-button[aria-pressed="true"] kbd { transform: translateY(3px); box-shadow: 0 1px 0 #080a10; background: #394359; }
+.control-button:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
+.control-button.red kbd { border-color: var(--red); color: var(--red); }
+.control-button.blue kbd { border-color: var(--blue); color: var(--blue); }
+.control-button.gold kbd { border-color: var(--yellow); color: var(--yellow); }
+.control-button:disabled { opacity: .45; cursor: not-allowed; }
 .control-label { writing-mode: vertical-rl; transform: rotate(180deg); color: #b2b9c6; }
 .controls .red { border-color: var(--red); color: var(--red); }.controls .blue { border-color: var(--blue); color: var(--blue); }.controls .gold { border-color: var(--yellow); color: var(--yellow); }
 .controls .combo { grid-template-columns: auto auto auto; }.controls .combo small { grid-column: 1/4; }.controls .combo b { align-self: center; color: #6c7482; }
@@ -264,7 +289,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--yellow); outlin
 /* Pixel fighter construction */
 .pixel-fighter { position: absolute; bottom: 0; left: 0; width: 78px; height: 140px; transform-origin: 50% 100%; transition: transform .18s; }
 .pixel-fighter .sprite { position: absolute; left: 13px; bottom: 8px; width: 52px; height: 118px; transform: scaleX(var(--facing)); transform-origin: center bottom; animation: fighter-idle 1.2s steps(2) infinite; }
-@keyframes fighter-idle { 50% { translate:0 -2px; } }
+@keyframes fighter-idle { 0%,100% { translate:0 0; } 50% { translate:1px -3px; } }
 .pixel-fighter .shadow { position: absolute; left: 7px; bottom: 1px; width: 64px; height: 12px; border-radius: 50%; background: rgba(0,0,0,.6); }
 .head { position: absolute; z-index: 5; left: 16px; top: 3px; width: 25px; height: 28px; background: var(--skin); border: 4px solid #11141b; box-shadow: inset 0 -5px rgba(70,35,20,.24); }
 .hair .hair-shape, .hood .hair-shape, .helmet .hair-shape { position: absolute; left: -4px; top: -5px; width: 27px; height: 13px; background: var(--accent); border: 3px solid #11141b; border-bottom: 0; }
@@ -284,7 +309,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--yellow); outlin
 .leg { position: absolute; z-index: 2; top: 68px; width: 14px; height: 40px; background: var(--outfit); border: 3px solid #11141b; transform-origin: top; }
 .leg-back { left: 13px; }.leg-front { left: 31px; }
 .leg .boot { position: absolute; bottom: -5px; left: -5px; width: 17px; height: 12px; background: #181b22; border: 2px solid #090b10; box-shadow:inset 0 4px #343842; }
-.weapon { position: absolute; z-index: 7; left: 46px; top: 55px; width: 8px; height: 11px; transform: rotate(-12deg); transform-origin: 4px 5px; }
+.weapon { position: absolute; z-index: 7; left: 0; top: 25px; width: 8px; height: 11px; transform: rotate(-12deg); transform-origin: 4px 7px; }
 .hilt { position: absolute; width: 6px; height: 14px; background: #bbc2c8; border: 2px solid #171a21; }
 .blade { position: absolute; left: 1px; bottom: 11px; width: 4px; height: 57px; background: white; border: 1px solid var(--saber); box-shadow: 0 0 5px 2px var(--saber); }
 .blade-extra { bottom: auto; top: 12px; }
@@ -314,18 +339,53 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--yellow); outlin
 .luke .torso,.rey .torso,.obiwan .torso { background:linear-gradient(90deg,var(--outfit) 0 45%,var(--accent) 46% 54%,var(--outfit) 55%); }
 .anakin .arm-front { background:#28292e; }.kylo .blade { box-shadow:0 0 8px 3px var(--saber); }.kylo .hilt:after,.kylo .hilt:before { content:"";position:absolute;top:2px;width:11px;height:3px;background:white;box-shadow:0 0 5px var(--saber); }.kylo .hilt:after{left:2px}.kylo .hilt:before{right:2px}
 
-.walk .sprite { animation:walk-bob .28s steps(2) infinite; }.walk .leg-front { animation: walk-leg .28s steps(2) infinite; }.walk .leg-back { animation: walk-leg .28s steps(2) infinite reverse; }
-@keyframes walk-leg { 50% { transform: rotate(18deg); } }
-@keyframes walk-bob { 50% { translate:0 -4px; } }
-.attack .arm-front { transform: rotate(-74deg); }.attack .weapon { animation: slash .4s steps(3); }
-@keyframes slash { 0% { transform: rotate(-90deg); } 60% { transform: rotate(65deg) translateX(12px); } }
+.idle .head { animation: idle-look 2.4s steps(3) infinite; }
+.idle .torso { animation: idle-breathe 1.2s steps(2) infinite; }
+.idle .cape, .idle .lekku-tail { animation: cloth-sway 1.6s steps(3) infinite; }
+@keyframes idle-look { 0%,70%,100% { translate:0 0; } 35% { translate:1px -2px; } }
+@keyframes idle-breathe { 50% { transform: scaleX(1.05); } }
+@keyframes cloth-sway { 50% { translate:-2px 1px; } }
+.walk .sprite { animation:walk-bob .34s steps(4) infinite; }
+.walk .leg-front { animation: walk-leg .34s steps(4) infinite; }
+.walk .leg-back { animation: walk-leg .34s steps(4) infinite reverse; }
+.walk .arm-front { animation: walk-arm .34s steps(4) infinite reverse; }
+.walk .arm-back { animation: walk-arm .34s steps(4) infinite; }
+.walk .torso { animation: walk-torso .34s steps(4) infinite; }
+.walk .head { animation: walk-head .34s steps(4) infinite; }
+.walk .cape, .walk .lekku-tail { animation: cloth-sway .34s steps(4) infinite; }
+@keyframes walk-leg { 0%,100% { transform: rotate(-24deg) translateY(2px); } 50% { transform: rotate(26deg) translateY(-4px); } }
+@keyframes walk-arm { 0%,100% { transform: rotate(-28deg); } 50% { transform: rotate(19deg); } }
+@keyframes walk-torso { 0%,100% { transform: skewX(-4deg); } 50% { transform: skewX(5deg); } }
+@keyframes walk-head { 0%,100% { translate:-1px 0; } 50% { translate:2px -2px; } }
+@keyframes walk-bob { 0%,100% { translate:-2px 0; } 25%,75% { translate:0 -4px; } 50% { translate:3px -1px; } }
+.attack .sprite { animation: attack-lunge .43s steps(5) both; }
+.attack .arm-front { animation: attack-arm .43s steps(5) both; }
+.attack .arm-back { animation: attack-recoil .43s steps(5) both; }
+.attack .torso { animation: attack-torso .43s steps(5) both; }
+.attack .leg-front { animation: attack-step .43s steps(5) both; }
+.attack .weapon { animation: slash .43s steps(5) both; }
+@keyframes attack-lunge { 0%,100% { translate:0 0; } 35% { translate:12px -3px; } 65% { translate:17px -1px; } }
+@keyframes attack-arm { 0% { transform: rotate(-16deg); } 35% { transform: rotate(-108deg); } 65% { transform: rotate(28deg); } 100% { transform: rotate(-18deg); } }
+@keyframes attack-recoil { 35%,65% { transform: rotate(38deg); } }
+@keyframes attack-torso { 35% { transform: skewX(-12deg); } 65% { transform: skewX(11deg); } }
+@keyframes attack-step { 35%,65% { transform: rotate(-25deg) translateX(5px); } }
+@keyframes slash { 0% { transform: rotate(-90deg); } 35% { transform: rotate(-120deg) translate(-3px,-7px); } 65% { transform: rotate(65deg) translateX(12px); } 100% { transform: rotate(-12deg); } }
 .attack.blaster .bolt { display: block; animation: shoot .35s steps(2); }
 @keyframes shoot { to { transform: translateX(100px); opacity: 0; } }
-.defend .weapon { transform: rotate(-105deg) translate(5px,-7px); }.defend .sprite { filter: drop-shadow(0 0 8px var(--saber)); }
-.crouch .sprite { transform: scaleX(var(--facing)) scaleY(.68); }.crouch .shadow { transform: scaleX(1.2); }
-.jump { animation: jump .65s cubic-bezier(.3,0,.6,1); }
-@keyframes jump { 45% { transform: translateY(-105px) rotate(5deg); } }
-.hit .sprite { filter: brightness(2) saturate(0); transform: scaleX(var(--facing)) translateX(-10px); }
+.defend .weapon { transform: rotate(-105deg) translate(5px,-7px); }.defend .sprite { filter: drop-shadow(0 0 8px var(--saber)); animation: defend-brace .38s steps(3) infinite; }
+.defend .arm-front { transform: rotate(-75deg); }.defend .leg-back { transform: rotate(15deg); }
+@keyframes defend-brace { 50% { translate:-3px 1px; } }
+.crouch .sprite { transform: scaleX(var(--facing)) scaleY(.68); animation: none; }.crouch .shadow { transform: scaleX(1.2); }
+.crouch .leg-front { transform: rotate(-35deg) translateY(8px); }.crouch .leg-back { transform: rotate(35deg) translateY(8px); }
+.crouch .arm-front { transform: rotate(-60deg); }.crouch .head { translate:2px 3px; }
+.jump { animation: jump .65s cubic-bezier(.3,0,.6,1); }.jump .sprite { animation:none; }
+.jump .leg-front { animation: jump-tuck .65s steps(5); }.jump .leg-back { animation: jump-tuck .65s steps(5) reverse; }
+.jump .arm-front { animation: jump-reach .65s steps(5); }.jump .cape, .jump .lekku-tail { animation: cloth-sway .3s steps(3) infinite; }
+@keyframes jump { 0%,100% { transform: translate(0,0) rotate(0); } 25% { transform: translate(5px,-65px) rotate(-5deg); } 50% { transform: translate(12px,-112px) rotate(7deg); } 75% { transform: translate(17px,-55px) rotate(2deg); } }
+@keyframes jump-tuck { 30%,65% { transform: rotate(44deg) translateY(-8px); } }
+@keyframes jump-reach { 35%,65% { transform: rotate(-135deg); } }
+.hit .sprite { filter: brightness(2) saturate(0); animation: hit-recoil .28s steps(4) both; }
+@keyframes hit-recoil { 0% { transform: scaleX(var(--facing)) translateX(0); } 40% { transform: scaleX(var(--facing)) translateX(-16px) rotate(-8deg); } 100% { transform: scaleX(var(--facing)) translateX(-7px); } }
 .ko .sprite { transform: scaleX(var(--facing)) rotate(-88deg) translateX(-35px); }
 .special .sprite { animation: super-move 1s steps(5); filter: drop-shadow(0 0 12px var(--saber)); }
 @keyframes super-move { 25% { transform: scaleX(var(--facing)) translateY(-45px) translateX(20px); } 60% { transform: scaleX(var(--facing)) translateX(75px) rotate(15deg); } }

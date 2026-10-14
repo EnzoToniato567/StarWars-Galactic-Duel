@@ -19,14 +19,15 @@ O projeto foi construído sem engine externa: os lutadores e suas animações s�
 - 10 lutadores, cada um com visual, arma e super próprios;
 - 4 arenas: Mustafar, Hoth, Endor e Estação Imperial;
 - 4 níveis de dificuldade para a CPU;
-- combate com vida, barra de Força, defesa, salto, agachamento e combo;
+- combate com vida, barras de Força para jogador e CPU, defesa, salto, agachamento e combo;
+- comandos clicáveis na arena para mouse e toque;
 - interface e efeitos visuais em estilo pixel art.
 
 ## Como jogar
 
 1. No menu, selecione **Iniciar batalha**.
 2. Escolha o lutador do Player 1.
-3. Clique em **CPU** no retrato de outro personagem para definir o oponente.
+3. Clique em **Escolher CPU** no cartão de outro personagem para definir o oponente.
 4. Selecione arena e dificuldade.
 5. Pressione **Entrar na batalha**.
 
@@ -34,14 +35,19 @@ O projeto foi construído sem engine externa: os lutadores e suas animações s�
 
 | Ação | Tecla |
 | --- | --- |
-| Mover para trás / frente | `A` / `D` ou `←` / `→` |
+| Mover para a esquerda / direita | `A` / `D` ou `←` / `→` |
 | Agachar | `S` ou `↓` |
 | Pular | `W`, `Espaço` ou `↑` |
 | Atacar | `J` |
 | Defender | `K` |
 | Usar super | `L` |
+| Pausar / continuar | `Esc` ou botão **Pausar** |
 
 Acertar golpes carrega a barra azul de **Força**. Ao chegar a 100%, pressione `L` para usar o golpe especial do personagem.
+
+Os comandos mostrados abaixo da arena também são botões: segure as direções, **Agacha** ou **Defende** para manter a ação; toque em **Pula**, **Ataca** ou **Super** para acioná-los. Segure uma direção enquanto pula para saltar por cima do adversário; também é possível atravessá-lo caminhando. O botão **Super** só fica disponível com a barra cheia. **Reiniciar round** recomeça apenas o round atual, e **Trocar lutadores** volta à seleção. Use **Pausar** na barra acima da arena ou `Esc` para congelar a batalha, incluindo a CPU e as animações. A tela cheia pode ser ativada ou desativada na mesma barra.
+
+Quando alguém perde toda a vida, o placar é atualizado e o próximo round começa automaticamente após quatro segundos. Você também pode usar **Próximo round** para avançar imediatamente. O número dos rounds, o placar e as barras de Força continuam entre rounds; iniciar outro combate ou reiniciar o round zera as barras. Agachar desvia de tiros comuns; pular desvia de ataques corpo a corpo comuns. Especiais ainda precisam ser defendidos.
 
 Os comandos foram organizados para serem usados com as duas mãos: a esquerda controla movimento com `WASD`, enquanto a direita usa `J`, `K` e `L` para lutar.
 
@@ -64,10 +70,12 @@ Os comandos foram organizados para serem usados com as duas mãos: a esquerda co
 
 | Nível | Comportamento |
 | --- | --- |
-| **Easy** | Reage devagar, causa menos dano e defende pouco. |
-| **Normal** | Experiência equilibrada para começar. |
-| **Hard** | Mais veloz, agressiva e defensiva. |
-| **Hardcore** | Reações rápidas, pressão contínua e uso frequente de especiais. |
+| **Easy** | Faz pausas e escolhas ruins com frequência, se move mais devagar, causa menos dano e raramente defende. |
+| **Normal** | Aproxima, recua, ataca, pula e se defende em ritmo equilibrado. |
+| **Hard** | Controla melhor a distância, reage aos ataques com defesa e usa especiais com frequência. |
+| **Hardcore** | Reage mais cedo, pressiona quase sem pausas, defende mais e usa a barra assim que encontra abertura. |
+
+A CPU procura uma distância adequada à sua arma, alterna aproximação e recuo e só acerta golpes quando o jogador está ao alcance. O alcance dos ataques também depende do tipo de arma e dos atributos de força e agilidade; o golpe só causa dano se o adversário estiver dentro desse alcance no momento do impacto. Ela também acumula Força para usar seu especial; a dificuldade altera o tempo de reação, a velocidade, a agressividade, a defesa e o dano.
 
 ## Tecnologias
 
@@ -78,12 +86,21 @@ Os comandos foram organizados para serem usados com as duas mãos: a esquerda co
 
 ## Desenvolvimento local
 
-Pré-requisito: Node.js instalado.
+Instale o Node.js e abra um terminal na pasta `StarWars-Galactic-Duel` (no VS Code: **Terminal → Novo Terminal**). Na primeira vez, instale as dependências:
 
 ```bash
 pnpm install
+```
+
+Depois, inicie o servidor de desenvolvimento do Vite:
+
+```bash
 pnpm dev
 ```
+
+Abra no navegador o endereço mostrado em **Local** no terminal — normalmente `http://localhost:5173/`. Deixe o terminal aberto enquanto joga; alterações no código aparecem automaticamente na página. Para encerrar o servidor, pressione `Ctrl+C` no terminal.
+
+Se não tiver `pnpm`, use `npm install` e `npm run dev` no lugar dos dois comandos acima.
 
 Para criar a versão de produção:
 
@@ -91,7 +108,7 @@ Para criar a versão de produção:
 pnpm build
 ```
 
-Também é possível usar os comandos equivalentes com `npm`.
+Com `npm`, o comando de produção é `npm run build`.
 
 ## Organização do projeto
 

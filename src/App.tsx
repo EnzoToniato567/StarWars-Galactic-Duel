@@ -34,6 +34,7 @@ const fighters: Fighter[] = [
 type Action = "idle" | "walk" | "attack" | "defend" | "crouch" | "jump" | "special" | "hit" | "ko";
 type Screen = "menu" | "select" | "battle";
 type Difficulty = "easy" | "normal" | "hard" | "hardcore";
+type RoundResult = "victory" | "defeat" | null;
 
 const arenas = [
   { id: "mustafar", name: "Mustafar", subtitle: "Complexo de mineração", tone: "FOGO" },
@@ -42,12 +43,26 @@ const arenas = [
   { id: "deathstar", name: "Estação Imperial", subtitle: "Hangar central", tone: "ESPAÇO" },
 ] as const;
 
-const difficultyLevels: Record<Difficulty, { label: string; description: string; reaction: number; movement: number; damage: number; aggression: number; guard: number; special: number }> = {
-  easy: { label: "Easy", description: "Reage devagar e causa menos dano.", reaction: 1200, movement: .65, damage: .7, aggression: .55, guard: .12, special: 0 },
-  normal: { label: "Normal", description: "Combate equilibrado para começar.", reaction: 800, movement: 1, damage: 1, aggression: .74, guard: .24, special: .04 },
-  hard: { label: "Hard", description: "Mais rápido, agressivo e defensivo.", reaction: 450, movement: 1.3, damage: 1.18, aggression: .86, guard: .36, special: .12 },
-  hardcore: { label: "Hardcore", description: "Sem piedade. Reação contínua e punição severa.", reaction: 160, movement: 1.8, damage: 1.5, aggression: .96, guard: .60, special: .35 },
+type CpuProfile = { label: string; description: string; reaction: number; movement: number; damage: number; aggression: number; guard: number; guardDelay: number; jump: number; retreat: number; special: number; mistake: number };
+
+const difficultyLevels: Record<Difficulty, CpuProfile> = {
+  easy: { label: "Easy", description: "Dá espaço, erra decisões e quase não defende.", reaction: 1050, movement: .7, damage: .65, aggression: .42, guard: .05, guardDelay: 500, jump: .03, retreat: .12, special: 0, mistake: .28 },
+  normal: { label: "Normal", description: "Ataca e se reposiciona em ritmo equilibrado.", reaction: 550, movement: 1, damage: 1, aggression: .68, guard: .22, guardDelay: 105, jump: .1, retreat: .24, special: .3, mistake: .1 },
+  hard: { label: "Hard", description: "Pressiona, pune aberturas e reage à ofensiva.", reaction: 300, movement: 1.25, damage: 1.12, aggression: .82, guard: .47, guardDelay: 95, jump: .13, retreat: .35, special: .72, mistake: .03 },
+  hardcore: { label: "Hardcore", description: "Reage cedo, controla a distância e usa a barra.", reaction: 170, movement: 1.5, damage: 1.27, aggression: .92, guard: .68, guardDelay: 45, jump: .16, retreat: .42, special: 1, mistake: 0 },
 };
+
+const weaponReach: Record<Fighter["weapon"], number> = {
+  saber: 11.5,
+  dual: 13,
+  staff: 14,
+  blaster: 18.5,
+};
+
+function attackReach(fighter: Fighter, empowered = false) {
+  const skillBonus = (fighter.speed - 80) * 0.02 + (fighter.power - 80) * 0.015;
+  return Math.max(9, weaponReach[fighter.weapon] + skillBonus + (empowered ? 4 : 0));
+}
 
 function PixelFighter({ fighter, action, facing = 1, cpu = false }: { fighter: Fighter; action: Action; facing?: number; cpu?: boolean }) {
   const vars = {
@@ -75,15 +90,17 @@ function PixelFighter({ fighter, action, facing = 1, cpu = false }: { fighter: F
         </div>
         <div className="torso"><i className="chest-detail" /><i className="belt"><b /></i></div>
         <div className="arm arm-back"><i className="glove" /><i className="hand" /></div>
-        <div className="arm arm-front"><i className="glove" /><i className="hand" /></div>
+        <div className="arm arm-front">
+          <i className="glove" /><i className="hand" />
+          <div className="weapon">
+            <i className="hilt" />
+            <i className="blade blade-main" />
+            {(fighter.weapon === "dual" || fighter.weapon === "staff") && <i className="blade blade-extra" />}
+            {fighter.weapon === "blaster" && <i className="bolt" />}
+          </div>
+        </div>
         <div className="leg leg-back"><i className="boot" /></div>
         <div className="leg leg-front"><i className="boot" /></div>
-        <div className="weapon">
-          <i className="hilt" />
-          <i className="blade blade-main" />
-          {(fighter.weapon === "dual" || fighter.weapon === "staff") && <i className="blade blade-extra" />}
-          {fighter.weapon === "blaster" && <i className="bolt" />}
-        </div>
         {action === "special" && <div className="force-ring"><i /><i /><i /></div>}
       </div>
     </div>
@@ -96,6 +113,46 @@ function Bar({ value, kind }: { value: number; kind: "health" | "force" }) {
       <div className="bar-fill" style={{ width: `${Math.max(0, value)}%` }} />
       <div className="bar-grid" />
     </div>
+  );
+}
+
+function ControlButton({ label, shortcut, control, tone, pressed = false, disabled = false, onPress, onRelease }: {
+  label: string;
+  shortcut: string;
+  control: string;
+  tone?: string;
+  pressed?: boolean;
+  disabled?: boolean;
+  onPress: (control: string) => void;
+  onRelease: (control: string) => void;
+}) {
+  const release = () => onRelease(control);
+  return (
+    <button
+      type="button"
+      className={`control-button ${tone ?? ""}`}
+      aria-label={`${label} (${shortcut})`}
+      aria-pressed={pressed}
+      disabled={disabled}
+      onPointerDown={event => {
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        onPress(control);
+      }}
+      onPointerUp={release}
+      onPointerCancel={release}
+      onLostPointerCapture={release}
+      onKeyDown={event => {
+        if ((event.key === "Enter" || event.key === " ") && ["left", "right", "crouch", "defend"].includes(control)) {
+          event.preventDefault();
+          if (!event.repeat) onPress(control);
+        }
+      }}
+      onClick={event => { if (event.detail === 0 && !["left", "right", "crouch", "defend"].includes(control)) onPress(control); }}
+      onKeyUp={release}
+    >
+      <kbd>{shortcut}</kbd><small>{label}</small>
+    </button>
   );
 }
 
@@ -133,24 +190,81 @@ export default function App() {
   const [heroHp, setHeroHp] = useState(100);
   const [rivalHp, setRivalHp] = useState(100);
   const [force, setForce] = useState(35);
+  const [rivalForce, setRivalForce] = useState(35);
   const [heroX, setHeroX] = useState(18);
   const [rivalX, setRivalX] = useState(76);
   const [heroAction, setHeroAction] = useState<Action>("idle");
   const [rivalAction, setRivalAction] = useState<Action>("idle");
   const [message, setMessage] = useState("ROUND 01");
   const [round, setRound] = useState(1);
+  const [roundResult, setRoundResult] = useState<RoundResult>(null);
+  const [roundWins, setRoundWins] = useState(0);
+  const [roundLosses, setRoundLosses] = useState(0);
   const [impact, setImpact] = useState(0);
   const [combo, setCombo] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const appRef = useRef<HTMLElement>(null);
   const keys = useRef(new Set<string>());
+  const touchKeys = useRef(new Set<string>());
   const locked = useRef(false);
+  const pausedRef = useRef(false);
+  const heroXRef = useRef(heroX);
+  const rivalXRef = useRef(rivalX);
+  const heroHpRef = useRef(heroHp);
+  const rivalHpRef = useRef(rivalHp);
+  const heroActionRef = useRef<Action>(heroAction);
   const rivalActionRef = useRef<Action>("idle");
+  const forceRef = useRef(force);
+  const rivalForceRef = useRef(rivalForce);
+  const roundToken = useRef(0);
+  const roundResultRef = useRef<RoundResult>(null);
+  const lastGuardAt = useRef(0);
   const rivalIntent = useRef<number>(0);
-  const difficultyRef = useRef(difficulty);
-  difficultyRef.current = difficulty;
+  heroXRef.current = heroX;
+  rivalXRef.current = rivalX;
+  heroHpRef.current = heroHp;
+  rivalHpRef.current = rivalHp;
+  heroActionRef.current = heroAction;
+  rivalActionRef.current = rivalAction;
+  forceRef.current = force;
+  rivalForceRef.current = rivalForce;
 
-  useEffect(() => { rivalActionRef.current = rivalAction; }, [rivalAction]);
+  const setHeroMotion = useCallback((action: Action) => {
+    if (heroActionRef.current === action) return;
+    heroActionRef.current = action;
+    setHeroAction(action);
+  }, []);
+  const setRivalMotion = useCallback((action: Action) => {
+    if (rivalActionRef.current === action) return;
+    rivalActionRef.current = action;
+    setRivalAction(action);
+  }, []);
+  const togglePause = useCallback(() => {
+    if (screen !== "battle") return;
+    const nextPaused = !pausedRef.current;
+    pausedRef.current = nextPaused;
+    setIsPaused(nextPaused);
+    keys.current.clear();
+    touchKeys.current.clear();
+    if (!nextPaused && !locked.current) setHeroMotion("idle");
+  }, [screen, setHeroMotion]);
+  const later = useCallback((delay: number, callback: () => void) => {
+    const token = roundToken.current;
+    let remaining = delay;
+    let lastTick = Date.now();
+    let timer = 0;
+    const tick = () => {
+      if (token !== roundToken.current) return;
+      const now = Date.now();
+      if (!pausedRef.current) remaining -= now - lastTick;
+      lastTick = now;
+      if (remaining <= 0) callback();
+      else timer = window.setTimeout(tick, Math.min(50, remaining));
+    };
+    timer = window.setTimeout(tick, Math.min(50, delay));
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const syncFullscreen = () => setIsFullscreen(document.fullscreenElement === appRef.current);
@@ -166,83 +280,152 @@ export default function App() {
 
   useEffect(() => {
     if (!combo) return;
-    const timer = window.setTimeout(() => setCombo(0), 1400);
-    return () => window.clearTimeout(timer);
-  }, [combo]);
+    return later(1400, () => setCombo(0));
+  }, [combo, later]);
 
-  const resetRound = useCallback((nextHero = hero, nextRival = rival) => {
+  const resetRound = useCallback((nextHero = hero, nextRival = rival, nextRound = round, carryForce = false) => {
+    roundToken.current += 1;
+    pausedRef.current = false;
+    setIsPaused(false);
+    keys.current.clear();
+    touchKeys.current.clear();
     setHero(nextHero);
     setRival(nextRival);
     setHeroHp(100);
     setRivalHp(100);
-    setForce(35);
+    heroHpRef.current = 100;
+    rivalHpRef.current = 100;
+    if (!carryForce) {
+      setForce(35);
+      setRivalForce(35);
+      forceRef.current = 35;
+      rivalForceRef.current = 35;
+    }
     setCombo(0);
     setImpact(0);
     setHeroX(18);
     setRivalX(76);
+    heroXRef.current = 18;
+    rivalXRef.current = 76;
+    heroActionRef.current = "idle";
+    rivalActionRef.current = "idle";
     setHeroAction("idle");
     setRivalAction("idle");
     rivalIntent.current = 0;
-    locked.current = false;
-    setMessage(`ROUND ${String(round).padStart(2, "0")}`);
-    window.setTimeout(() => setMessage("LUTE!"), 700);
-    window.setTimeout(() => setMessage(""), 1400);
-  }, [hero, rival, round]);
+    roundResultRef.current = null;
+    setRoundResult(null);
+    lastGuardAt.current = 0;
+    locked.current = true;
+    setMessage(`ROUND ${String(nextRound).padStart(2, "0")}`);
+    later(700, () => setMessage("LUTE!"));
+    later(1400, () => {
+      setMessage("");
+      locked.current = false;
+    });
+  }, [hero, rival, round, later]);
+
+  const advanceRound = useCallback(() => {
+    if (!roundResultRef.current) return;
+    const nextRound = round + 1;
+    setRound(nextRound);
+    resetRound(hero, rival, nextRound, true);
+  }, [hero, rival, round, resetRound]);
+
+  useEffect(() => {
+    if (screen !== "battle" || !roundResult) return;
+    return later(4000, advanceRound);
+  }, [screen, roundResult, advanceRound, later]);
 
   const hurtRival = useCallback((damage: number, special = false) => {
+    if (locked.current) return;
     const guarded = rivalActionRef.current === "defend";
     const dealt = guarded ? Math.ceil(damage * 0.28) : damage;
-    setRivalHp(hp => {
-      const next = Math.max(0, hp - dealt);
-      if (next === 0) {
-        setRivalAction("ko");
-        setMessage("VITÓRIA");
-        locked.current = true;
-      }
-      return next;
-    });
-    if (!guarded) {
+    const next = Math.max(0, rivalHpRef.current - dealt);
+    rivalHpRef.current = next;
+    setRivalHp(next);
+    if (next === 0) {
+      setRivalMotion("ko");
+      setMessage("VITÓRIA");
+      locked.current = true;
+      roundResultRef.current = "victory";
+      setRoundResult("victory");
+      setRoundWins(wins => wins + 1);
+    }
+    if (!guarded && next > 0) {
       setImpact(v => v + 1);
       setCombo(v => v + (special ? 3 : 1));
-      setRivalAction("hit");
-      window.setTimeout(() => setRivalAction("idle"), special ? 700 : 280);
+      setRivalMotion("hit");
+      later(special ? 700 : 280, () => {
+        if (!locked.current) setRivalMotion("idle");
+      });
     }
-  }, []);
+  }, [later, setRivalMotion]);
 
   const attack = useCallback(() => {
-    if (locked.current || ["attack", "special", "hit", "ko"].includes(heroAction)) return;
-    setHeroAction("attack");
-    const inRange = Math.abs(rivalX - heroX) < (hero.weapon === "blaster" ? 64 : 30);
-    if (inRange) {
-      window.setTimeout(() => hurtRival(Math.round(hero.power / 8)), 130);
+    if (locked.current || pausedRef.current || ["attack", "special", "hit", "ko", "jump"].includes(heroActionRef.current)) return;
+    setHeroMotion("attack");
+    later(130, () => {
+      if (locked.current || Math.abs(rivalXRef.current - heroXRef.current) > attackReach(hero)) return;
+      if ((rivalActionRef.current === "jump" && hero.weapon !== "blaster") ||
+          (rivalActionRef.current === "crouch" && hero.weapon === "blaster")) return;
+      hurtRival(Math.round(hero.power / 8));
       setForce(v => Math.min(100, v + 14));
-    }
-    window.setTimeout(() => setHeroAction("idle"), 430);
-  }, [hero, heroAction, heroX, rivalX, hurtRival]);
+    });
+    later(430, () => {
+      if (!locked.current) setHeroMotion("idle");
+    });
+  }, [hero, hurtRival, later, setHeroMotion]);
 
   const special = useCallback(() => {
-    if (locked.current || force < 100 || ["special", "hit", "ko"].includes(heroAction)) return;
+    if (locked.current || pausedRef.current || forceRef.current < 100 || ["special", "hit", "ko"].includes(heroActionRef.current)) return;
+    if (Math.abs(rivalXRef.current - heroXRef.current) > attackReach(hero, true)) return;
     setForce(0);
-    setHeroAction("special");
+    setHeroMotion("special");
     setMessage(hero.superName.toUpperCase());
-    window.setTimeout(() => hurtRival(31, true), 480);
-    window.setTimeout(() => setMessage(""), 950);
-    window.setTimeout(() => setHeroAction("idle"), 1050);
-  }, [force, hero, heroAction, hurtRival]);
+    later(480, () => {
+      if (!locked.current && Math.abs(rivalXRef.current - heroXRef.current) <= attackReach(hero, true)) hurtRival(31, true);
+    });
+    later(950, () => { if (!locked.current) setMessage(""); });
+    later(1050, () => { if (!locked.current) setHeroMotion("idle"); });
+  }, [hero, hurtRival, later, setHeroMotion]);
+
+  const jump = useCallback(() => {
+    if (locked.current || pausedRef.current || ["attack", "special", "hit", "ko", "jump"].includes(heroActionRef.current)) return;
+    setHeroMotion("jump");
+    later(650, () => { if (!locked.current) setHeroMotion("idle"); });
+  }, [later, setHeroMotion]);
+
+  const pressControl = (control: string) => {
+    if (pausedRef.current) return;
+    if (control === "attack") attack();
+    else if (control === "special") special();
+    else if (control === "jump") jump();
+    else touchKeys.current.add(control);
+  };
+  const releaseControl = (control: string) => touchKeys.current.delete(control);
+  const held = (control: string) => touchKeys.current.has(control) ||
+    (control === "left" && (keys.current.has("a") || keys.current.has("arrowleft"))) ||
+    (control === "right" && (keys.current.has("d") || keys.current.has("arrowright"))) ||
+    (control === "crouch" && (keys.current.has("s") || keys.current.has("arrowdown"))) ||
+    (control === "defend" && keys.current.has("k"));
 
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
       if (screen !== "battle") return;
       const key = event.key.toLowerCase();
+      if (key === "escape") {
+        event.preventDefault();
+        if (!event.repeat) togglePause();
+        return;
+      }
+      if (pausedRef.current) return;
+      if ((key === " " || key === "enter") && event.target instanceof HTMLButtonElement && event.target.closest(".control-deck")) return;
       if (["a", "d", "w", "s", " ", "arrowleft", "arrowright", "arrowup", "arrowdown", "j", "k", "l"].includes(key)) event.preventDefault();
       keys.current.add(key);
       if (event.repeat) return;
       if (key === "j") attack();
       if (key === "l") special();
-      if ((key === "w" || key === " " || key === "arrowup") && !locked.current && !["attack", "special", "hit", "ko", "jump"].includes(heroAction)) {
-        setHeroAction("jump");
-        window.setTimeout(() => setHeroAction("idle"), 650);
-      }
+      if (key === "w" || key === " " || key === "arrowup") jump();
     };
     const up = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
@@ -250,7 +433,8 @@ export default function App() {
     };
     const clearKeys = () => {
       keys.current.clear();
-      if (!locked.current) setHeroAction("idle");
+      touchKeys.current.clear();
+      if (!locked.current && !pausedRef.current) setHeroMotion("idle");
     };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
@@ -260,87 +444,137 @@ export default function App() {
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", clearKeys);
     };
-  }, [attack, special, heroAction, screen]);
+  }, [attack, special, jump, screen, setHeroMotion, togglePause]);
 
   useEffect(() => {
     const movement = window.setInterval(() => {
-      if (locked.current || screen !== "battle") return;
-      const bot = difficultyLevels[difficultyRef.current];
+      if (locked.current || pausedRef.current || screen !== "battle") return;
+      const bot = difficultyLevels[difficulty];
 
-      const left = keys.current.has("a") || keys.current.has("arrowleft");
-      const right = keys.current.has("d") || keys.current.has("arrowright");
-      const crouch = keys.current.has("s") || keys.current.has("arrowdown");
+      const left = held("left");
+      const right = held("right");
+      const crouch = held("crouch");
 
-      if (left) setHeroX(x => Math.max(3, x - hero.speed / 480));
-      if (right) setHeroX(x => Math.min(rivalX - 8, x + hero.speed / 480));
-
-      const actionLocked = ["attack", "special", "hit", "ko", "jump"].includes(heroAction);
-      if (!actionLocked) {
-        if (keys.current.has("k")) setHeroAction("defend");
-        else if (crouch) setHeroAction("crouch");
-        else if (left || right) setHeroAction("walk");
-        else setHeroAction("idle");
+      if (left !== right) {
+        const movementSpeed = (hero.speed / 480) * (heroActionRef.current === "jump" ? 1.8 : 1);
+        heroXRef.current = left
+          ? Math.max(3, heroXRef.current - movementSpeed)
+          : Math.min(92, heroXRef.current + movementSpeed);
+        setHeroX(heroXRef.current);
       }
 
-      if (rivalIntent.current === -1) {
-        setRivalX(x => Math.max(heroX + 12, x - (rival.speed / 480) * bot.movement));
-      } else if (rivalIntent.current === 1) {
-        setRivalX(x => Math.min(88, x + (rival.speed / 480) * bot.movement));
+      const actionLocked = ["attack", "special", "hit", "ko", "jump"].includes(heroActionRef.current);
+      if (!actionLocked) {
+        if (held("defend")) setHeroMotion("defend");
+        else if (crouch) setHeroMotion("crouch");
+        else if (left !== right) setHeroMotion("walk");
+        else setHeroMotion("idle");
+      }
+
+      if (rivalIntent.current !== 0 && ["idle", "walk"].includes(rivalActionRef.current)) {
+        rivalXRef.current = rivalIntent.current < 0
+          ? Math.max(3, rivalXRef.current - (rival.speed / 480) * bot.movement)
+          : Math.min(92, rivalXRef.current + (rival.speed / 480) * bot.movement);
+        setRivalX(rivalXRef.current);
       }
     }, 16);
     return () => window.clearInterval(movement);
-  }, [hero.speed, heroAction, rival.speed, rivalX, screen]);
+  }, [hero.speed, rival.speed, difficulty, screen, setHeroMotion]);
 
   useEffect(() => {
-    const bot = difficultyLevels[difficultyRef.current];
+    if (screen !== "battle" || !["attack", "special"].includes(heroAction)) return;
+    const bot = difficultyLevels[difficulty];
+    if (Math.random() >= bot.guard || Date.now() - lastGuardAt.current < 850) return;
+    return later(bot.guardDelay, () => {
+      if (locked.current || Math.abs(rivalXRef.current - heroXRef.current) > attackReach(hero) + 2 ||
+          !["idle", "walk"].includes(rivalActionRef.current)) return;
+      lastGuardAt.current = Date.now();
+      rivalIntent.current = 0;
+      setRivalMotion(hero.weapon === "blaster" && Math.random() < .4 ? "crouch" : "defend");
+      later(360, () => { if (!locked.current) setRivalMotion("idle"); });
+    });
+  }, [heroAction, hero.weapon, difficulty, screen, later, setRivalMotion]);
+
+  useEffect(() => {
+    const bot = difficultyLevels[difficulty];
     const ai = window.setInterval(() => {
-      if (locked.current || screen !== "battle") return;
+      if (locked.current || pausedRef.current || screen !== "battle") return;
       if (rivalActionRef.current !== "idle" && rivalActionRef.current !== "walk") return;
 
-      const distance = rivalX - heroX;
+      const signedDistance = rivalXRef.current - heroXRef.current;
+      const distance = Math.abs(signedDistance);
+      const directionToHero = signedDistance > 0 ? -1 : 1;
+      const attackRange = attackReach(rival);
+      const specialRange = attackReach(rival, true);
+      const idealRange = Math.max(8.5, attackRange * .76);
       rivalIntent.current = 0;
 
-      if (distance > 25 && rival.weapon !== "blaster") {
-        rivalIntent.current = -1;
-        setRivalAction("walk");
-      } else if (Math.random() < bot.aggression) {
-        const usesSpecial = Math.random() < bot.special;
-        setRivalAction(usesSpecial ? "special" : "attack");
-        window.setTimeout(() => {
-          const isGuarded = heroAction === "defend";
-          const isLow = heroAction === "crouch" && Math.random() > 0.4;
-          if (!isLow) {
-            const baseDamage = Math.round((rival.power / 9) * bot.damage * (usesSpecial ? 1.65 : 1));
-            const damage = isGuarded ? Math.max(2, Math.round(baseDamage * .28)) : baseDamage;
-            setHeroHp(hp => {
-              const next = Math.max(0, hp - damage);
-              if (next === 0) {
-                setHeroAction("ko");
-                setMessage("DERROTA");
-                locked.current = true;
-              } else if (!isGuarded) {
-                setHeroAction("hit");
-                window.setTimeout(() => setHeroAction("idle"), 280);
-              }
-              return next;
-            });
-          }
-        }, 190);
-        window.setTimeout(() => setRivalAction("idle"), usesSpecial ? 950 : 500);
-      } else {
-        if (Math.random() < bot.guard) {
-          setRivalAction("defend");
-          window.setTimeout(() => setRivalAction("idle"), 400);
-        } else if (distance < 70) {
-          rivalIntent.current = 1;
-          setRivalAction("walk");
-        } else {
-          setRivalAction("idle");
-        }
+      if (Math.random() < bot.mistake) {
+        setRivalMotion("idle");
+        return;
       }
+      if (distance > idealRange + 7) {
+        rivalIntent.current = directionToHero;
+        setRivalMotion("walk");
+        return;
+      }
+      if (distance < idealRange - 9 && Math.random() < bot.retreat) {
+        rivalIntent.current = -directionToHero;
+        setRivalMotion("walk");
+        return;
+      }
+      if (Math.random() < bot.jump && heroActionRef.current !== "defend") {
+        setRivalMotion("jump");
+        later(650, () => { if (!locked.current) setRivalMotion("idle"); });
+        return;
+      }
+      const attackChance = heroActionRef.current === "defend" ? bot.aggression * .45 : bot.aggression;
+      if (distance > attackRange || Math.random() > attackChance) {
+        rivalIntent.current = distance < idealRange ? -directionToHero : directionToHero;
+        if (distance <= idealRange + 2 && Math.random() < .45) rivalIntent.current = 0;
+        setRivalMotion(rivalIntent.current === 0 ? "idle" : "walk");
+        return;
+      }
+
+      const usesSpecial = rivalForceRef.current >= 100 && Math.random() < bot.special;
+      rivalIntent.current = 0;
+      setRivalMotion(usesSpecial ? "special" : "attack");
+      if (usesSpecial) {
+        rivalForceRef.current = 0;
+        setRivalForce(0);
+      }
+      later(usesSpecial ? 460 : 190, () => {
+        if (locked.current || Math.abs(rivalXRef.current - heroXRef.current) > (usesSpecial ? specialRange : attackRange)) return;
+        const isGuarded = heroActionRef.current === "defend";
+        const evaded = !usesSpecial &&
+          ((heroActionRef.current === "crouch" && rival.weapon === "blaster") ||
+           (heroActionRef.current === "jump" && rival.weapon !== "blaster"));
+        if (evaded) return;
+        const baseDamage = Math.round((rival.power / 9) * bot.damage * (usesSpecial ? 1.8 : 1));
+        const damage = isGuarded ? Math.max(2, Math.round(baseDamage * .28)) : baseDamage;
+        const next = Math.max(0, heroHpRef.current - damage);
+        heroHpRef.current = next;
+        setHeroHp(next);
+        if (next === 0) {
+          setHeroMotion("ko");
+          setMessage("DERROTA");
+          locked.current = true;
+          roundResultRef.current = "defeat";
+          setRoundResult("defeat");
+          setRoundLosses(losses => losses + 1);
+        } else if (!isGuarded) {
+          setHeroMotion("hit");
+          later(280, () => { if (!locked.current) setHeroMotion("idle"); });
+        }
+        if (!usesSpecial) {
+          rivalForceRef.current = Math.min(100, rivalForceRef.current + 14);
+          setRivalForce(rivalForceRef.current);
+        }
+      });
+      later(usesSpecial ? 950 : 500, () => { if (!locked.current) setRivalMotion("idle"); });
     }, bot.reaction);
     return () => { window.clearInterval(ai); rivalIntent.current = 0; };
-  }, [heroAction, heroX, rival, rivalX, screen]);
+  }, [difficulty, rival, screen, later, setHeroMotion, setRivalMotion]);
 
   const chooseHero = (fighter: Fighter) => {
     const newRival = fighter.id === rival.id ? fighters[(fighters.indexOf(fighter) + 1) % fighters.length] : rival;
@@ -368,26 +602,36 @@ export default function App() {
 
   const leaveBattle = () => {
     if (document.fullscreenElement === appRef.current) void document.exitFullscreen().catch(() => undefined);
+    roundToken.current += 1;
+    pausedRef.current = false;
+    setIsPaused(false);
+    keys.current.clear();
+    touchKeys.current.clear();
+    rivalIntent.current = 0;
     setScreen("select");
   };
 
   const startBattle = () => {
     void enterFullscreen();
-    setRound(r => r + 1);
+    setRound(1);
+    setRoundWins(0);
+    setRoundLosses(0);
     setCombo(0);
-    resetRound(hero, rival);
+    resetRound(hero, rival, 1);
     setScreen("battle");
   };
+
+  const heroFacing = heroX <= rivalX ? 1 : -1;
 
   return (
     <main ref={appRef} className={`app-shell screen-${screen}`}>
       <header className="topbar">
-        <button className="brand brand-button" onClick={() => setScreen("menu")} aria-label="Star Wars Galactic Duel início">
+        <button className="brand brand-button" onClick={() => { if (screen === "battle") leaveBattle(); setScreen("menu"); }} aria-label="Star Wars Galactic Duel início">
           <span className="brand-mark">SW</span>
           <span><small>STAR WARS</small><b>GALACTIC</b><i>DUEL</i></span>
         </button>
         <div className="game-status">{screen === "battle" ? `${arenas.find(a => a.id === arenaId)?.name} • ROUND ${round}` : screen === "select" ? "SELEÇÃO DE COMBATE" : "A FORÇA CHAMA"}</div>
-        <button className="roster-button" onClick={() => setScreen(screen === "select" ? "menu" : "select")}>{screen === "select" ? "VOLTAR" : "NOVO COMBATE"}</button>
+        <button className="roster-button" onClick={() => screen === "battle" ? leaveBattle() : setScreen(screen === "select" ? "menu" : "select")}>{screen === "select" ? "VOLTAR" : "NOVO COMBATE"}</button>
       </header>
 
       {screen === "menu" && (
@@ -503,8 +747,11 @@ export default function App() {
         <div className="battle-toolbar">
           <div className="battle-toolbar-actions">
             <button onClick={leaveBattle}>‹ TROCAR LUTADORES</button>
+          <button className="pause-button" onClick={togglePause} aria-pressed={isPaused}>
+            {isPaused ? "▶ CONTINUAR" : "Ⅱ PAUSAR"}
+          </button>
           <button className="fullscreen-button" onClick={() => void toggleFullscreen()} aria-pressed={isFullscreen}>
-            {isFullscreen ? "⛶ SAIR DA TELA CHEIA" : "⛶ VOLTAR À TELA CHEIA"}
+            {isFullscreen ? "⛶ SAIR DA TELA CHEIA" : "⛶ ENTRAR NA TELA CHEIA"}
           </button>
           </div>
           <span>{arenas.find(a => a.id === arenaId)?.subtitle} • CPU {difficultyLevels[difficulty].label}</span>
@@ -517,15 +764,15 @@ export default function App() {
               <Bar value={heroHp} kind="health" />
               <div className="force-row"><span>FORÇA</span><Bar value={force} kind="force" /><b>{Math.round(force)}%</b></div>
             </div>
-            <div className="versus"><span>{String(round).padStart(2, "0")}</span><b>VS</b></div>
+            <div className="versus"><span>{String(round).padStart(2, "0")}</span><b>VS</b><small>{roundWins} × {roundLosses}</small></div>
             <div className="hud-player enemy">
               <div className="hud-name"><small>CPU</small><div><b>{rival.name}</b><span>{rival.title}</span></div></div>
               <Bar value={rivalHp} kind="health" />
-              <div className="force-row"><b>CPU</b><Bar value={68} kind="force" /><span>ÓDIO</span></div>
+              <div className="force-row"><b>CPU</b><Bar value={rivalForce} kind="force" /><span>ÓDIO</span></div>
             </div>
           </div>
 
-          <div className={`arena ${rivalAction === "hit" ? "has-impact" : ""}`}>
+          <div className={`arena ${rivalAction === "hit" ? "has-impact" : ""} ${isPaused ? "is-paused" : ""}`}>
             <div className="stars far" /><div className="stars near" />
             <div className="sun" /><div className="planet" />
             <div className="mountains back" /><div className="mountains front" />
@@ -533,25 +780,39 @@ export default function App() {
             <div className="stage-elements"><i /><i /><i /><i /></div>
             <div className="ambient-particles">{[0, 1, 2, 3, 4, 5, 6, 7].map(i => <i key={i} />)}</div>
             <div className="floor-lines" />
-            {message && <div className={`fight-message ${message.length > 12 ? "long" : ""}`}>{message}</div>}
+            {message && !roundResult && <div className={`fight-message ${message.length > 12 ? "long" : ""}`}>{message}</div>}
+            {roundResult && <div className="round-result" role="status">
+              <span>ROUND {String(round).padStart(2, "0")}</span>
+              <h2>{roundResult === "victory" ? "VITÓRIA" : "DERROTA"}</h2>
+              <p>Placar: {roundWins} vitória{roundWins === 1 ? "" : "s"} · {roundLosses} derrota{roundLosses === 1 ? "" : "s"}</p>
+              <button type="button" onClick={advanceRound}>PRÓXIMO ROUND ▶</button>
+              <small>O próximo round começa automaticamente.</small>
+            </div>}
+            {isPaused && <div className="pause-overlay" role="status">
+              <span>BATALHA PAUSADA</span>
+              <button type="button" onClick={togglePause}>▶ RETOMAR</button>
+              <small>Pressione Esc para continuar</small>
+            </div>}
             {combo > 1 && <div className="combo-counter"><b>{combo}x</b><span>COMBO</span></div>}
-            <div className="combatant hero-fighter" style={{ left: `${heroX}%` }}><PixelFighter fighter={hero} action={heroAction} facing={1} /></div>
-            <div className="combatant rival-fighter" style={{ left: `${rivalX}%` }}><PixelFighter fighter={rival} action={rivalAction} facing={-1} cpu /></div>
+            <div className="combatant hero-fighter" style={{ left: `${heroX}%` }}><PixelFighter fighter={hero} action={heroAction} facing={heroFacing} /></div>
+            <div className="combatant rival-fighter" style={{ left: `${rivalX}%` }}><PixelFighter fighter={rival} action={rivalAction} facing={-heroFacing} cpu /></div>
             {impact > 0 && <div className="hit-spark" key={impact} style={{ left: `${rivalX}%` }}><i /><i /><i /><i /></div>}
           </div>
 
           <div className="control-deck">
-          <div className="controls">
-            <span className="control-label">MOVIMENTO</span>
-            <div><kbd>A</kbd><small>TRÁS</small></div><div><kbd>D</kbd><small>FRENTE</small></div>
-            <div><kbd>S</kbd><small>AGACHA</small></div><div><kbd>W</kbd><small>PULA</small></div><div><kbd>SPACE</kbd><small>PULA</small></div>
-            <span className="or">OU SETAS</span>
-          </div>
-          <div className="controls action-controls">
-            <div><kbd className="red">J</kbd><small>ATACA</small></div><div><kbd className="blue">K</kbd><small>DEFENDE</small></div>
-            <div><kbd className="gold">L</kbd><small>SUPER</small></div>
+            <div className="controls">
+              <span className="control-label">MOVIMENTO</span>
+              <ControlButton label="TRÁS" shortcut="A / ←" control="left" pressed={held("left")} onPress={pressControl} onRelease={releaseControl} />
+              <ControlButton label="FRENTE" shortcut="D / →" control="right" pressed={held("right")} onPress={pressControl} onRelease={releaseControl} />
+              <ControlButton label="AGACHA" shortcut="S / ↓" control="crouch" pressed={held("crouch")} onPress={pressControl} onRelease={releaseControl} />
+              <ControlButton label="PULA" shortcut="W / ↑" control="jump" onPress={pressControl} onRelease={releaseControl} />
             </div>
-            <button className="reset-button" onClick={() => resetRound()}><span>↻</span> REINICIAR</button>
+            <div className="controls action-controls">
+              <ControlButton label="ATACA" shortcut="J" control="attack" tone="red" onPress={pressControl} onRelease={releaseControl} />
+              <ControlButton label="DEFENDE" shortcut="K" control="defend" tone="blue" pressed={held("defend")} onPress={pressControl} onRelease={releaseControl} />
+              <ControlButton label="SUPER" shortcut="L" control="special" tone="gold" disabled={force < 100 || locked.current} onPress={pressControl} onRelease={releaseControl} />
+            </div>
+            <button className="reset-button" onClick={() => roundResult ? advanceRound() : resetRound(hero, rival, round)}><span>↻</span> {roundResult ? "PRÓXIMO ROUND" : "REINICIAR ROUND"}</button>
           </div>
         </section>
       </section>}

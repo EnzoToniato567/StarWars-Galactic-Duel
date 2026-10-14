@@ -51,6 +51,19 @@ Quando alguém perde toda a vida, o placar é atualizado e o próximo round come
 
 Os comandos foram organizados para serem usados com as duas mãos: a esquerda controla movimento com `WASD`, enquanto a direita usa `J`, `K` e `L` para lutar.
 
+### Player arcade
+
+O player no canto inferior direito toca a transmissão oficial ao vivo da **ERICADE Radio**, com chiptune, demoscene e tracker music. Use `▶` para tocar ou pausar e **VOL** para ajustar o volume. O nome da música, a duração e a barra de progresso são atualizados em tempo real quando a estação troca de faixa. Clique no ícone de nota para abrir a lista informativa de faixas recentes. É necessária conexão com a internet.
+
+## Música e API
+
+O player usa a [ERICADE Radio](https://ericade.radio/), uma estação focada em chiptune, demoscene e tracker music. Ao abrir o site, o jogo consulta a API pública da estação para obter as faixas tocadas recentemente, enquanto a reprodução usa o stream oficial ao vivo. Nenhuma chave privada é armazenada no projeto.
+
+- **Transmissão:** stream oficial ao vivo da ERICADE Radio;
+- **Lista:** até 8 faixas recentes da estação para descobrir o que está na programação;
+- **Documentação:** [API ERICADE Radio](https://api.ericade.net/);
+- **Requisito:** conexão com a internet para carregar faixas, capas e a transmissão.
+
 ## Lutadores
 
 | Lutador | Super |

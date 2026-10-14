@@ -181,6 +181,179 @@ function FighterAttributes({ fighter, label, tone }: { fighter: Fighter; label: 
   );
 }
 
+type ArcadeTrack = {
+  id: string;
+  title: string;
+  artist: string;
+  duration: number;
+  image?: string;
+  trackerType?: string;
+  startedAt?: number;
+  streamingOffset?: number;
+};
+
+type EricadeHistoryResponse = {
+  Tracks?: Array<{ TrackID?: string | number; Title?: string; Artist?: string; Duration?: string | number; PlayLength?: string | number; TimeStamp?: string | number; WebStreamingOffset?: string | number; musicURL?: string; Image?: string; TrackerType?: string }>;
+};
+
+function formatTime(seconds: number) {
+  if (!Number.isFinite(seconds)) return "0:00";
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`;
+}
+
+function ArcadePlayer() {
+  const streamUrl = "https://radio.ericade.net/sc/stream/1/";
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState(0.42);
+  const [playlist, setPlaylist] = useState<ArcadeTrack[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [liveTrack, setLiveTrack] = useState<ArcadeTrack | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [status, setStatus] = useState<"loading" | "ready" | "fallback" | "error">("loading");
+  const currentTrack = liveTrack ?? playlist[currentIndex];
+  const duration = currentTrack?.duration || 0;
+  const artist = currentTrack?.artist || "Chiptune e demoscene";
+
+  useEffect(() => {
+    const getPlaylist = async () => {
+      try {
+        const tokenResponse = await fetch("https://radio.ericade.net/get-token/");
+        if (!tokenResponse.ok) throw new Error("Token unavailable");
+        const token = (await tokenResponse.text()).trim();
+        const response = await fetch("https://api.ericade.net/radio/v2/songhistory", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ Token: token, StationID: 1, Limit: 24 }),
+        });
+        if (!response.ok) throw new Error("Playlist unavailable");
+        const data = await response.json() as EricadeHistoryResponse;
+        const tracks = (data.Tracks || []).filter(track => track.musicURL && track.Artist !== "ericade.radio" && Number(track.Duration) > 20).slice(0, 8).map(track => ({
+          id: String(track.TrackID),
+          title: track.Title || "Faixa sem título",
+          artist: track.Artist || "Artista desconhecido",
+          duration: Number(track.Duration) || 0,
+          image: track.Image,
+          trackerType: track.TrackerType,
+        }));
+        if (!tracks.length) throw new Error("No playable tracks");
+        setPlaylist(tracks);
+        setStatus("ready");
+      } catch {
+        setPlaylist([{ id: "ericade-live", title: "ERICADE Radio — ao vivo", artist: "Chiptune, demoscene e tracker music", duration: 0, image: "https://radio.ericade.net/images/demoscene.webp" }]);
+        setStatus("fallback");
+      }
+    };
+    void getPlaylist();
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const refreshNowPlaying = async () => {
+      try {
+        const tokenResponse = await fetch("https://radio.ericade.net/get-token/");
+        if (!tokenResponse.ok) throw new Error("Token unavailable");
+        const token = (await tokenResponse.text()).trim();
+        const response = await fetch("https://api.ericade.net/radio/v2/nowplaying/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ Token: token, StationID: 1, Sequence: 0 }),
+        });
+        if (!response.ok) throw new Error("Now playing unavailable");
+        const data = await response.json() as EricadeHistoryResponse;
+        const track = data.Tracks?.[0];
+        if (!active || !track) return;
+        setLiveTrack({
+          id: String(track.TrackID),
+          title: track.Title || "ERICADE Radio",
+          artist: track.Artist || "Chiptune e demoscene",
+          duration: Number(track.PlayLength ?? track.Duration) || 0,
+          image: track.Image,
+          trackerType: track.TrackerType,
+          startedAt: Number(track.TimeStamp) || undefined,
+          streamingOffset: Number(track.WebStreamingOffset) || 0,
+        });
+        setStatus("ready");
+      } catch {
+        // The live stream keeps working if metadata temporarily fails.
+      }
+    };
+    void refreshNowPlaying();
+    const timer = window.setInterval(() => void refreshNowPlaying(), 15000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
+
+  useEffect(() => {
+    const updateProgress = () => {
+      if (!liveTrack?.startedAt || !liveTrack.duration) return;
+      const elapsed = (Date.now() / 1000) - liveTrack.startedAt - (liveTrack.streamingOffset || 0);
+      setCurrentTime(Math.max(0, Math.min(liveTrack.duration, elapsed)));
+    };
+    updateProgress();
+    const timer = window.setInterval(updateProgress, 1000);
+    return () => window.clearInterval(timer);
+  }, [liveTrack]);
+
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume;
+  }, [volume]);
+
+  const togglePlayback = async () => {
+    const player = audioRef.current;
+    if (!player) return;
+    if (isPlaying) {
+      player.pause();
+      setIsPlaying(false);
+      return;
+    }
+    try {
+      await player.play();
+      setIsPlaying(true);
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  const playTrack = (index: number) => {
+    const nextIndex = (index + playlist.length) % playlist.length;
+    setCurrentIndex(nextIndex);
+  };
+
+  const changeTrack = (direction: number) => playTrack(currentIndex + direction);
+
+  return (
+    <aside className={`arcade-player ${isExpanded ? "is-expanded" : ""}`} aria-label="Player de músicas arcade">
+      <audio ref={audioRef} src={streamUrl} preload="none" onError={() => setStatus("error")} />
+      <button className="player-collapse" onClick={() => setIsExpanded(value => !value)} aria-expanded={isExpanded} aria-label={isExpanded ? "Fechar player de música" : "Abrir player de música"} title={isExpanded ? "Fechar player" : "Abrir player"}>
+        {isExpanded ? "×" : "♫"}
+      </button>
+      <div className="player-main">
+        <div className="player-cover">
+          {currentTrack?.image ? <img src={currentTrack.image} alt="" /> : <span>8BIT</span>}
+        </div>
+        <div className="player-track">
+          <span>{status === "fallback" ? "RÁDIO ARCADE · AO VIVO" : "ERICADE RADIO · TOCANDO AGORA"}</span>
+          <b title={currentTrack?.title}>{currentTrack?.title || "Carregando músicas…"}</b>
+          <small>{currentTrack?.trackerType ? `${artist} · ${currentTrack.trackerType}` : artist}</small>
+        </div>
+        <div className="player-controls">
+          <button onClick={() => changeTrack(-1)} disabled={!playlist.length} aria-label="Ver faixa anterior">◀</button>
+          <button className="player-play" onClick={() => void togglePlayback()} aria-label={isPlaying ? "Pausar rádio" : "Tocar rádio"}>{isPlaying ? "Ⅱ" : "▶"}</button>
+          <button onClick={() => changeTrack(1)} disabled={!playlist.length} aria-label="Ver próxima faixa">▶</button>
+        </div>
+      </div>
+      <div className="player-progress"><span>{formatTime(currentTime)}</span><input type="range" min="0" max={duration || 1} value={currentTime} disabled aria-label="Progresso da música transmitida ao vivo" /><span>{duration ? formatTime(duration) : "AO VIVO"}</span></div>
+      <label className="player-volume" aria-label="Volume"><span>VOL</span><input type="range" min="0" max="1" step="0.05" value={volume} onChange={event => setVolume(Number(event.target.value))} /></label>
+      <div className="player-list" aria-label="Faixas recentes da ERICADE Radio">
+        {playlist.map((track, index) => <button key={track.id} className={index === currentIndex ? "active" : ""} onClick={() => playTrack(index)}><span>{String(index + 1).padStart(2, "0")}</span><b>{track.title}</b><small>{track.artist}</small><i>{formatTime(track.duration)}</i></button>)}
+      </div>
+      <a className="player-credit" href="https://ericade.radio/" target="_blank" rel="noreferrer">MÚSICA VIA ERICADE RADIO ↗</a>
+    </aside>
+  );
+}
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>("menu");
   const [arenaId, setArenaId] = useState<(typeof arenas)[number]["id"]>("mustafar");
@@ -828,6 +1001,8 @@ export default function App() {
           ))}
         </div>
       </section>}
+
+      <ArcadePlayer />
 
       <footer>
         <div className="brand mini"><span className="brand-mark">SW</span><span><small>STAR WARS</small><b>GALACTIC</b><i>DUEL</i></span></div>

@@ -53,7 +53,7 @@ Os comandos foram organizados para serem usados com as duas mãos: a esquerda co
 
 ### Player arcade
 
-O player no canto inferior direito toca a transmissão oficial ao vivo da **ERICADE Radio**, com chiptune, demoscene e tracker music. Use `▶` para tocar ou pausar e **VOL** para ajustar o volume. O nome da música, a duração e a barra de progresso são atualizados em tempo real quando a estação troca de faixa. Clique no ícone de nota para abrir a lista informativa de faixas recentes. É necessária conexão com a internet.
+O player no canto inferior direito toca a transmissão oficial ao vivo da **ERICADE Radio**, com chiptune, demoscene e tracker music. Clique no ícone de nota para abrir o player e iniciar o áudio; use `▶` para tocar ou pausar e **VOL** para ajustar o volume. O nome da música, a duração e a barra de progresso são atualizados em tempo real quando a estação troca de faixa. A lista mostra faixas recentes da rádio. Se a transmissão não carregar, o player toca uma trilha arcade original incluída no jogo, mesmo sem internet. Use **Tentar rádio** para voltar à transmissão quando ela estiver disponível.
 
 ## Música e API
 
@@ -62,7 +62,7 @@ O player usa a [ERICADE Radio](https://ericade.radio/), uma estação focada em 
 - **Transmissão:** stream oficial ao vivo da ERICADE Radio;
 - **Lista:** até 8 faixas recentes da estação para descobrir o que está na programação;
 - **Documentação:** [API ERICADE Radio](https://api.ericade.net/);
-- **Requisito:** conexão com a internet para carregar faixas, capas e a transmissão.
+- **Sem conexão:** a trilha original em `public/audio/galactic-duel-theme.wav` é usada quando a transmissão falha. Ela pode ser regenerada com `node scripts/generate_theme.mjs`.
 
 ## Lutadores
 
